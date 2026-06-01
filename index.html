@@ -1,0 +1,1081 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Memória das Constelações</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fontes Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Orbitron:wght@400..900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Animação de flutuar do Astro */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(1deg); }
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
+        /* Estrelas piscando de fundo */
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration, 3s) infinite ease-in-out;
+            animation-delay: var(--delay, 0s);
+            pointer-events: none; /* Garante que estrelas de fundo não interceptem o toque */
+        }
+        /* Efeito de rotação 3D da carta */
+        .card-container {
+            perspective: 1000px;
+            touch-action: manipulation; /* Previne duplo clique e zoom no mobile */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .card-inner {
+            transition: transform 0.5s;
+            transform-style: preserve-3d;
+        }
+        .card-inner.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            backface-visibility: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        /* Trava de rolagem quando modais estão abertos */
+        .modal-open {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 relative flex flex-col justify-between">
+
+    <!-- Fundo de Estrelas Dinâmico (Totalmente isolado com z-0 e pointer-events-none) -->
+    <div id="starfield" class="absolute inset-0 pointer-events-none overflow-hidden z-0"></div>
+
+    <!-- Conteúdo Principal do Jogo envolvido em uma camada segura z-10 -->
+    <div class="relative z-10 flex flex-col justify-between min-h-screen">
+        
+        <!-- Cabeçalho Principal -->
+        <header class="w-full max-w-6xl mx-auto px-4 pt-4 pb-1 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <div class="bg-blue-600/30 border border-blue-400/50 p-1.5 rounded-lg backdrop-blur-sm">
+                    <svg class="w-6 h-6 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-purple-400 font-orbitron uppercase leading-tight">
+                        Memória Espacial
+                    </h1>
+                    <p class="text-[10px] sm:text-xs text-sky-300/80">Aprenda as Constelações!</p>
+                </div>
+            </div>
+
+            <!-- Painel Superior de Progresso e Conquistas -->
+            <div class="flex items-center gap-2">
+                <button id="audioBtn" type="button" class="bg-slate-800/80 hover:bg-slate-700/80 text-sky-400 border border-slate-700 p-2 rounded-lg transition duration-300 flex items-center justify-center backdrop-blur-sm" title="Ativar/Desativar Som">
+                    <svg id="audioOnIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                    <svg id="audioOffIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zm12.53 1.13l-4.24-4.24m0 0L18.06 7.65m-4.24 4.24l4.24 4.24m-4.24-4.24l-4.24-4.24" />
+                    </svg>
+                </button>
+                <button id="awardsBtn" type="button" class="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-yellow-300 border border-yellow-500/40 px-2.5 py-1.5 rounded-lg transition duration-300 flex items-center gap-1.5 backdrop-blur-sm text-xs">
+                    <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span class="font-semibold">Medalhas</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Área do Conteúdo Principal -->
+        <main class="w-full max-w-6xl mx-auto px-4 flex-1 flex flex-col lg:flex-row gap-4 items-center justify-center py-2">
+            
+            <!-- Área de Jogo (No topo para celulares, facilitando a jogabilidade) -->
+            <div class="w-full lg:w-2/3 flex flex-col gap-3 order-first lg:order-last">
+                
+                <!-- Seleção de Níveis e Estatísticas -->
+                <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 backdrop-blur-sm">
+                    
+                    <!-- Seleção de Dificuldade -->
+                    <div class="flex flex-col gap-1 w-full md:w-auto">
+                        <span class="text-[10px] text-sky-400 font-bold uppercase tracking-wider font-orbitron">Dificuldade do Jogo:</span>
+                        <div class="flex items-center gap-1.5">
+                            <button id="btn-easy" type="button" class="flex-1 md:flex-none px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition duration-300 border border-emerald-500/30 bg-emerald-500/20 text-emerald-300">
+                                Fácil (4 Pares)
+                            </button>
+                            <button id="btn-medium" type="button" class="flex-1 md:flex-none px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition duration-300 border border-slate-700 bg-slate-800 text-slate-400">
+                                Médio (8 Pares)
+                            </button>
+                            <button id="btn-hard" type="button" class="flex-1 md:flex-none px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition duration-300 border border-slate-700 bg-slate-800 text-slate-400">
+                                Difícil (12 Pares)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Estatísticas Temporárias -->
+                    <div class="flex items-center gap-2 justify-between w-full md:w-auto md:justify-end border-t border-slate-800 md:border-t-0 pt-2 md:pt-0">
+                        <div class="text-center px-2 py-0.5 bg-slate-950/60 rounded-lg border border-slate-800/80 min-w-[70px]">
+                            <div class="text-[9px] text-sky-400 font-semibold uppercase font-orbitron">Jogadas</div>
+                            <div id="moveCounter" class="text-sm sm:text-base font-black text-white font-orbitron">0</div>
+                        </div>
+                        <div class="text-center px-2 py-0.5 bg-slate-950/60 rounded-lg border border-slate-800/80 min-w-[70px]">
+                            <div class="text-[9px] text-sky-400 font-semibold uppercase font-orbitron">Tempo</div>
+                            <div id="timeCounter" class="text-sm sm:text-base font-black text-sky-300 font-orbitron">00:00</div>
+                        </div>
+                        <div class="text-center px-2 py-0.5 bg-slate-950/60 rounded-lg border border-slate-800/80 min-w-[70px]">
+                            <div class="text-[9px] text-sky-400 font-semibold uppercase font-orbitron">Pontos</div>
+                            <div id="scoreCounter" class="text-sm sm:text-base font-black text-yellow-400 font-orbitron">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Progresso Espacial -->
+                <div class="w-full bg-slate-950/80 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-sm">
+                    <span class="text-[10px] font-bold text-sky-400 uppercase font-orbitron">Progresso:</span>
+                    <div class="flex-1 bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+                        <div id="progressBar" class="bg-gradient-to-r from-sky-400 to-purple-500 h-full w-0 transition-all duration-500"></div>
+                    </div>
+                    <span id="progressText" class="text-[10px] font-black text-sky-300 font-orbitron">0%</span>
+                </div>
+
+                <!-- Grade do Jogo (O Tabuleiro de Cartas) -->
+                <div id="gameBoard" class="grid grid-cols-4 gap-2 justify-center items-center my-1">
+                    <!-- Cartas geradas dinamicamente -->
+                </div>
+
+                <!-- Controles de Ação de Reinício -->
+                <div class="flex justify-center">
+                    <button id="resetBtn" type="button" class="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold px-5 py-2.5 rounded-xl transition duration-300 active:scale-95 text-xs sm:text-sm uppercase tracking-wider font-orbitron">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        Reiniciar Missão
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Painel do Astro (Fica em baixo nos smartphones) -->
+            <div class="w-full lg:w-1/3 flex flex-col items-center mt-3 lg:mt-0 order-last lg:order-first">
+                <!-- Balão de Fala do Astro -->
+                <div class="relative bg-slate-900/95 border-2 border-sky-400 p-3.5 rounded-xl shadow-lg w-full mb-3 backdrop-blur-sm">
+                    <div class="absolute bottom-[-10px] left-1/2 transform -translate-x-1/2 lg:left-auto lg:right-12 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-sky-400"></div>
+                    <div class="absolute bottom-[-8px] left-1/2 transform -translate-x-1/2 lg:left-auto lg:right-12 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[9px] border-t-slate-900"></div>
+                    
+                    <h3 class="text-sky-400 font-bold mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wider font-orbitron">
+                        <span class="inline-block w-2 h-2 rounded-full bg-green-400 animate-ping"></span>
+                        Guia Astro:
+                    </h3>
+                    <p id="astroSpeech" class="text-slate-200 text-xs leading-relaxed transition duration-300">
+                        Olá, explorador espacial! Bem-vindo ao Memória das Constelações! Sua missão é encontrar os pares corretos.
+                    </p>
+                </div>
+
+                <!-- Desenho do Astronauta Astro via SVG -->
+                <div class="relative w-24 h-24 sm:w-32 sm:h-32 animate-float">
+                    <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-[0_0_15px_rgba(56,189,248,0.3)]">
+                        <!-- Mochila de Oxigênio -->
+                        <rect x="50" y="70" width="100" height="80" rx="15" fill="#1e293b" stroke="#64748b" stroke-width="4" />
+                        <rect x="55" y="75" width="10" height="70" rx="5" fill="#38bdf8" />
+                        <path d="M 60 120 Q 30 140 70 160" fill="none" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round" />
+                        
+                        <!-- Corpo/Traje -->
+                        <rect x="65" y="100" width="70" height="70" rx="20" fill="#e2e8f0" stroke="#94a3b8" stroke-width="5" />
+                        <path d="M 65 125 L 135 125" stroke="#2563eb" stroke-width="6" />
+                        
+                        <!-- Braços -->
+                        <path id="astroLeftArm" d="M 65 115 Q 35 90 25 70" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" />
+                        <circle id="astroLeftHand" cx="25" cy="70" r="10" fill="#cbd5e1" />
+                        <path d="M 135 115 Q 160 130 170 145" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" />
+                        <circle cx="170" cy="145" r="10" fill="#cbd5e1" />
+
+                        <!-- Pernas -->
+                        <rect x="75" y="160" width="20" height="25" rx="5" fill="#e2e8f0" stroke="#94a3b8" stroke-width="4" />
+                        <rect x="105" y="160" width="20" height="25" rx="5" fill="#e2e8f0" stroke="#94a3b8" stroke-width="4" />
+                        <rect x="70" y="180" width="26" height="10" rx="3" fill="#cbd5e1" />
+                        <rect x="104" y="180" width="26" height="10" rx="3" fill="#cbd5e1" />
+
+                        <!-- Estrela no peito -->
+                        <polygon points="100,107 103,113 110,114 105,119 106,126 100,122 94,126 95,119 90,114 97,113" fill="#fbbf24" />
+
+                        <!-- Capacete -->
+                        <circle cx="100" cy="75" r="40" fill="#e2e8f0" stroke="#94a3b8" stroke-width="5" />
+                        <circle cx="100" cy="73" r="32" fill="#1e3a8a" stroke="#38bdf8" stroke-width="3" />
+                        
+                        <!-- Rosto -->
+                        <circle id="astroEyeL" cx="88" cy="72" r="5" fill="#ffffff" />
+                        <circle id="astroEyeR" cx="112" cy="72" r="5" fill="#ffffff" />
+                        <circle cx="82" cy="80" r="4" fill="#f43f5e" opacity="0.6" />
+                        <circle cx="118" cy="80" r="4" fill="#f43f5e" opacity="0.6" />
+                        <path id="astroMouth" d="M 92 80 Q 100 90 108 80" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                    <div class="absolute top-[8px] left-[46px] sm:left-[60px] w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Rodapé -->
+        <footer class="w-full text-center py-2.5 text-[10px] text-slate-500 border-t border-slate-900/60 bg-slate-950/20">
+            Desenvolvido com carinho para futuros astrônomos &copy; 2026.
+        </footer>
+    </div>
+
+    <!-- ==================== MODAL INFORMATIVO (JANELA EDUCATIVA) ==================== -->
+    <div id="educationModal" class="fixed inset-0 bg-slate-950/90 flex items-center justify-center p-3 z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-sky-400/80 rounded-2xl max-w-md w-full p-5 relative shadow-2xl max-h-[95vh] overflow-y-auto transform scale-95 transition-transform duration-300">
+            
+            <div class="text-center mb-3">
+                <span class="text-[10px] font-bold text-sky-400 tracking-widest uppercase font-orbitron">Constelação Encontrada!</span>
+                <h2 id="modalTitle" class="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-300 via-indigo-200 to-purple-300 font-orbitron tracking-wide uppercase mt-0.5">Órion</h2>
+            </div>
+
+            <!-- Imagem e Ilustração Ampliada -->
+            <div class="bg-slate-950 rounded-xl p-3 border border-slate-800 flex justify-center items-center h-40 mb-3 shadow-inner relative overflow-hidden">
+                <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.1)_0%,transparent_70%)]"></div>
+                <div id="modalConstellationSvg" class="w-full h-full flex items-center justify-center z-10"></div>
+            </div>
+
+            <!-- Explicação Científica -->
+            <div class="bg-slate-900/80 border border-slate-800/80 p-3 rounded-xl mb-3">
+                <h4 class="text-sky-300 text-[10px] font-bold uppercase font-orbitron mb-1 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1" />
+                    </svg>
+                    Fato Científico:
+                </h4>
+                <p id="modalExplanation" class="text-slate-200 text-xs leading-relaxed">
+                    Texto explicativo sobre a constelação...
+                </p>
+            </div>
+
+            <!-- Curiosidade Extra -->
+            <div class="bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-xl mb-4">
+                <h4 class="text-yellow-400 text-[10px] font-bold uppercase font-orbitron mb-1 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 fill-currentColor" viewBox="0 0 20 20">
+                        <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0a1 1 0 012 0z" />
+                    </svg>
+                    Você sabia?
+                </h4>
+                <p id="modalCuriosity" class="text-yellow-100/90 text-xs leading-relaxed italic">
+                    Curiosidade incrível para surpreender o jogador...
+                </p>
+            </div>
+
+            <!-- Botão de Fechar / Continuar -->
+            <div class="flex justify-center">
+                <button id="closeEducationBtn" type="button" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-2.5 px-6 rounded-xl transition duration-300 active:scale-95 font-orbitron text-xs uppercase tracking-wider">
+                    Continuar Explorando 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL DE RECOMPENSAS / MEDALHAS ==================== -->
+    <div id="awardsModal" class="fixed inset-0 bg-slate-950/95 flex items-center justify-center p-3 z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 border-2 border-yellow-400/80 rounded-2xl max-w-md w-full p-5 relative shadow-2xl max-h-[95vh] overflow-y-auto transform scale-95 transition-transform duration-300">
+            
+            <button id="closeAwardsBtn" type="button" class="absolute top-3 right-3 text-slate-400 hover:text-white transition p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <div class="text-center mb-4">
+                <span class="text-[10px] font-bold text-yellow-400 tracking-widest uppercase font-orbitron">Galeria de Troféus</span>
+                <h2 class="text-lg font-black text-white font-orbitron uppercase mt-0.5">Minhas Medalhas Estelares</h2>
+            </div>
+
+            <!-- Grade de Medalhas -->
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <!-- Medalha Fácil -->
+                <div id="medal-easy" class="bg-slate-900 border border-slate-800/80 p-2 rounded-xl flex flex-col items-center text-center opacity-40 grayscale transition">
+                    <div class="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center mb-1 border border-emerald-500/20 relative">
+                        <svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571" />
+                        </svg>
+                    </div>
+                    <span class="text-[9px] font-bold text-white leading-tight">Explorador</span>
+                </div>
+
+                <!-- Medalha Média -->
+                <div id="medal-medium" class="bg-slate-900 border border-slate-800/80 p-2 rounded-xl flex flex-col items-center text-center opacity-40 grayscale transition">
+                    <div class="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center mb-1 border border-blue-500/20 relative">
+                        <svg class="w-5 h-5 text-sky-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3" />
+                        </svg>
+                    </div>
+                    <span class="text-[9px] font-bold text-white leading-tight">Astrônomo</span>
+                </div>
+
+                <!-- Medalha Difícil -->
+                <div id="medal-hard" class="bg-slate-900 border border-slate-800/80 p-2 rounded-xl flex flex-col items-center text-center opacity-40 grayscale transition">
+                    <div class="w-10 h-10 bg-purple-500/10 rounded-full flex items-center justify-center mb-1 border border-purple-500/20 relative">
+                        <svg class="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16z" />
+                        </svg>
+                    </div>
+                    <span class="text-[9px] font-bold text-white leading-tight">Mestre</span>
+                </div>
+            </div>
+
+            <!-- Certificado Virtual Oculto/Desbloqueado -->
+            <div id="certificateContainer" class="border border-dashed border-slate-800 bg-slate-950 p-3 rounded-xl text-center flex flex-col items-center justify-center">
+                <svg class="w-8 h-8 text-slate-700 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6" />
+                </svg>
+                <h4 class="text-xs font-bold text-slate-400">Certificado de Navegador</h4>
+                <p class="text-[10px] text-slate-500 mt-0.5">Desbloqueie as 3 dificuldades para obter!</p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== MODAL DE VITÓRIA / MISSÃO CONCLUÍDA ==================== -->
+    <div id="victoryModal" class="fixed inset-0 bg-slate-950/95 flex items-center justify-center p-3 z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-gradient-to-b from-indigo-950/90 via-slate-950 to-slate-950 border-2 border-yellow-400 rounded-2xl max-w-md w-full p-6 text-center relative shadow-2xl max-h-[95vh] overflow-y-auto transform scale-95 transition-transform duration-300">
+            
+            <span class="text-[10px] font-black text-yellow-400 tracking-widest uppercase font-orbitron">Missão Cumprida!</span>
+            <h2 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500 font-orbitron uppercase mt-0.5 mb-3">Sucesso Absoluto!</h2>
+
+            <!-- Astro Comemorando Animado -->
+            <div class="relative w-28 h-28 mx-auto mb-3 bg-slate-900/60 rounded-full border border-indigo-500/30 flex items-center justify-center">
+                <svg viewBox="0 0 200 200" class="w-20 h-20 animate-bounce">
+                    <rect x="50" y="70" width="100" height="80" rx="15" fill="#1e293b" stroke="#64748b" stroke-width="4" />
+                    <rect x="65" y="100" width="70" height="70" rx="20" fill="#e2e8f0" stroke="#94a3b8" stroke-width="5" />
+                    <!-- Braços erguidos -->
+                    <path d="M 65 115 Q 40 80 45 50" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" />
+                    <circle cx="45" cy="50" r="10" fill="#cbd5e1" />
+                    <path d="M 135 115 Q 160 80 155 50" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" />
+                    <circle cx="155" cy="50" r="10" fill="#cbd5e1" />
+                    <circle cx="100" cy="75" r="40" fill="#e2e8f0" stroke="#94a3b8" stroke-width="5" />
+                    <circle cx="100" cy="73" r="32" fill="#1e3a8a" stroke="#38bdf8" stroke-width="3" />
+                    <circle cx="88" cy="72" r="5" fill="#ffffff" />
+                    <circle cx="112" cy="72" r="5" fill="#ffffff" />
+                    <path d="M 90 77 Q 100 95 110 77" fill="#ffffff" />
+                </svg>
+            </div>
+
+            <!-- Resumo da Partida -->
+            <div class="bg-slate-900 border border-indigo-950 p-3 rounded-xl mb-4">
+                <div class="grid grid-cols-3 gap-1.5">
+                    <div class="p-1.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                        <div class="text-[8px] text-slate-400 uppercase font-orbitron">Jogadas</div>
+                        <div id="victoryMoves" class="text-xs font-bold text-white">0</div>
+                    </div>
+                    <div class="p-1.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                        <div class="text-[8px] text-slate-400 uppercase font-orbitron">Tempo</div>
+                        <div id="victoryTime" class="text-xs font-bold text-white">00:00</div>
+                    </div>
+                    <div class="p-1.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                        <div class="text-[8px] text-slate-400 uppercase font-orbitron">Pontos</div>
+                        <div id="victoryScore" class="text-xs font-bold text-yellow-400">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-slate-300 text-xs leading-relaxed mb-4">
+                "Você concluiu sua missão com sucesso! Mapeou este setor espacial brilhantemente!"
+            </p>
+
+            <div class="flex gap-2 justify-center">
+                <button id="playAgainBtn" type="button" class="flex-1 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-bold py-2.5 px-4 rounded-xl transition duration-300 active:scale-95 font-orbitron text-xs uppercase tracking-wider">
+                    Jogar De Novo 🔄
+                </button>
+                <button id="viewMedalsBtn" type="button" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-4 rounded-xl border border-slate-700 transition duration-300 font-orbitron text-xs uppercase tracking-wider">
+                    Medalhas 🏆
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Script Principal -->
+    <script>
+        // --- BANCO DE DADOS DAS CONSTELAÇÕES ---
+        const CONSTELLATIONS_DATABASE = {
+            orion: {
+                name: "Órion",
+                explanation: "Órion é uma das constelações mais famosas do céu. Ela representa um gigante caçador da mitologia e é facilmente reconhecida pelas Três Marias que compõem o seu cinturão central.",
+                curiosity: "A estrela vermelha no ombro esquerdo de Órion se chama Betelgeuse. Ela é tão gigante que se estivesse no lugar do nosso Sol engoliria até a órbita de Júpiter!",
+                color: "#ff823c",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-orange-400">
+                    <line x1="25" y1="20" x2="75" y2="20" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="25" y1="20" x2="45" y2="50" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="75" y1="20" x2="55" y2="50" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="45" y1="50" x2="55" y2="50" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="45" y1="50" x2="30" y2="80" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="55" y1="50" x2="70" y2="80" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="25" cy="20" r="4.5" fill="#f87171" />
+                    <circle cx="75" cy="20" r="3.5" fill="#38bdf8" />
+                    <circle cx="45" cy="50" r="3" fill="#60a5fa" />
+                    <circle cx="50" cy="50" r="3" fill="#60a5fa" />
+                    <circle cx="55" cy="50" r="3" fill="#60a5fa" />
+                    <circle cx="30" cy="80" r="3.5" fill="#38bdf8" />
+                    <circle cx="70" cy="80" r="5" fill="#93c5fd" />
+                </svg>`
+            },
+            ursa_major: {
+                name: "Ursa Maior",
+                explanation: "A Ursa Maior é uma das constelações mais conhecidas do hemisfério norte. Suas estrelas mais brilhantes desenham uma forma que lembra uma grande concha.",
+                curiosity: "Ela ajudou navegadores por séculos! Usando as duas estrelas da sua ponta, é possível traçar uma linha reta e localizar a famosa Estrela Polar.",
+                color: "#38bdf8",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-sky-400">
+                    <path d="M15,50 L30,45 L40,43 L50,52 L75,52 L80,72 L55,75 Z" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="15" cy="50" r="3.5" fill="#38bdf8" />
+                    <circle cx="30" cy="45" r="3" fill="#38bdf8" />
+                    <circle cx="40" cy="43" r="3.5" fill="#38bdf8" />
+                    <circle cx="50" cy="52" r="3" fill="#38bdf8" />
+                    <circle cx="75" cy="52" r="3.5" fill="#38bdf8" />
+                    <circle cx="80" cy="72" r="4.5" fill="#60a5fa" />
+                    <circle cx="55" cy="75" r="3" fill="#38bdf8" />
+                </svg>`
+            },
+            scorpio: {
+                name: "Escorpião",
+                explanation: "Escorpião é uma constelação muito brilhante e fácil de identificar pela sua longa cauda curvada em formato de anzol e o coração avermelhado.",
+                curiosity: "A estrela gigante no coração do escorpião se chama Antares. Seu nome significa 'Rival de Marte', devido à sua intensa cor vermelha.",
+                color: "#ef4444",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-red-400">
+                    <path d="M75,25 L65,30 L55,38 L48,46 L45,55 L48,65 L55,70 L62,68 L64,60 L58,58" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="75" cy="25" r="5" fill="#ef4444" />
+                    <circle cx="65" cy="30" r="3.5" fill="#fb7185" />
+                    <circle cx="55" cy="38" r="3" fill="#cbd5e1" />
+                    <circle cx="45" cy="55" r="3" fill="#cbd5e1" />
+                    <circle cx="62" cy="68" r="3.5" fill="#38bdf8" />
+                </svg>`
+            },
+            southern_cross: {
+                name: "Cruzeiro do Sul",
+                explanation: "O Cruzeiro do Sul é a menor constelação de todas, mas é de extrema importância para orientação e mapeamento no hemisfério sul.",
+                curiosity: "Ela possui uma pequena estrela posicionada de forma desalinhada que parece não pertencer ao desenho principal; ela é apelidada de 'Intrometida'.",
+                color: "#3b82f6",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-blue-400">
+                    <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+                    <line x1="20" y1="45" x2="80" y2="45" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+                    <circle cx="50" cy="15" r="4" fill="#60a5fa" />
+                    <circle cx="20" cy="45" r="4" fill="#38bdf8" />
+                    <circle cx="80" cy="45" r="4" fill="#38bdf8" />
+                    <circle cx="50" cy="85" r="5" fill="#93c5fd" />
+                    <circle cx="62" cy="60" r="2.5" fill="#fbbf24" />
+                </svg>`
+            },
+            leo: {
+                name: "Leão",
+                explanation: "A constelação representa o famoso Leão da mitologia grega e desenha perfeitamente a figura de um leão deitado na cúpula do céu.",
+                curiosity: "Sua estrela principal é Regulus, que significa 'O Pequeno Rei'. Ela brilha intensamente no peito do leão e gira de forma incrivelmente rápida.",
+                color: "#eab308",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-yellow-400">
+                    <path d="M85,65 L70,72 L45,68 L32,50 L18,48 L15,62 L28,70 L45,68 M70,72 L68,45 L78,35 L85,42" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="85" cy="65" r="3" fill="#e2e8f0" />
+                    <circle cx="70" cy="72" r="5" fill="#fef08a" />
+                    <circle cx="45" cy="68" r="3" fill="#e2e8f0" />
+                    <circle cx="32" cy="50" r="3" fill="#e2e8f0" />
+                    <circle cx="18" cy="48" r="3.5" fill="#e2e8f0" />
+                    <circle cx="68" cy="45" r="3" fill="#e2e8f0" />
+                </svg>`
+            },
+            cassiopeia: {
+                name: "Cassiopeia",
+                explanation: "Ela representa uma orgulhosa rainha mitológica e é facilmente reconhecida pelo seu formato brilhante de 'W' ou 'M' no céu.",
+                curiosity: "Por estar muito perto do polo norte celeste, é uma constelação que nunca se põe abaixo do horizonte em grande parte do hemisfério norte.",
+                color: "#a855f7",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-purple-400">
+                    <path d="M15,35 L32,60 L50,42 L68,62 L85,38" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+                    <circle cx="15" cy="35" r="4" fill="#a855f7" />
+                    <circle cx="32" cy="60" r="4.5" fill="#c084fc" />
+                    <circle cx="50" cy="42" r="3.5" fill="#cbd5e1" />
+                    <circle cx="68" cy="62" r="4.5" fill="#c084fc" />
+                    <circle cx="85" cy="38" r="4" fill="#a855f7" />
+                </svg>`
+            },
+            taurus: {
+                name: "Touro",
+                explanation: "Uma imponente constelação que desenha a cabeça e os chifres de um touro bravo, servindo também de abrigo para as Plêiades.",
+                curiosity: "As Plêiades são um grupo lindo de estrelas jovens azuis que parecem pequenos diamantes brilhando juntos a olho nu.",
+                color: "#10b981",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-emerald-400">
+                    <path d="M85,20 L55,42 L35,48 L15,55 M55,42 L58,68 L80,82" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="55" cy="42" r="5" fill="#f87171" />
+                    <circle cx="85" cy="20" r="3" fill="#cbd5e1" />
+                    <circle cx="35" cy="48" r="3.5" fill="#cbd5e1" />
+                    <circle cx="15" cy="55" r="4" fill="#38bdf8" />
+                    <circle cx="58" cy="68" r="3" fill="#cbd5e1" />
+                </svg>`
+            },
+            gemini: {
+                name: "Gêmeos",
+                explanation: "Representa os irmãos gêmeos Castor e Pólux da mitologia grega, simbolizados por duas colunas de estrelas muito paralelas.",
+                curiosity: "Pólux, uma das cabeças dos gêmeos, é uma estrela gigante laranja que possui um planeta gigante confirmado girando ao seu redor!",
+                color: "#06b6d4",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-cyan-400">
+                    <path d="M30,20 L32,45 L35,75 M68,48 L80,52 L85,70" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="30" y1="20" x2="70" y2="22" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-dasharray="3" />
+                    <circle cx="30" cy="20" r="4" fill="#38bdf8" />
+                    <circle cx="70" cy="22" r="4" fill="#fbbf24" />
+                    <circle cx="32" cy="45" r="3" fill="#cbd5e1" />
+                    <circle cx="35" cy="75" r="3" fill="#cbd5e1" />
+                    <circle cx="85" cy="70" r="3" fill="#cbd5e1" />
+                </svg>`
+            },
+            pegasus: {
+                name: "Pégaso",
+                explanation: "Representa o lendário cavalo alado mitológico. Sua principal marca no céu é um grande quadrado de estrelas bem desenhado.",
+                curiosity: "Uma de suas estrelas foi a primeira parecida com o nosso Sol a ter um exoplaneta alienígena descoberto ao seu redor em 1995!",
+                color: "#ec4899",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-pink-400">
+                    <path d="M30,30 L70,30 L70,70 L30,70 Z M70,30 L85,15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="30" cy="30" r="4" fill="#cbd5e1" />
+                    <circle cx="70" cy="30" r="4" fill="#cbd5e1" />
+                    <circle cx="70" cy="70" r="4" fill="#cbd5e1" />
+                    <circle cx="30" cy="70" r="4.5" fill="#f472b6" />
+                </svg>`
+            },
+            cygnus: {
+                name: "Cisne",
+                explanation: "Também conhecida como Cruz do Norte, essa graciosa constelação desenha a forma de um cisne voando pela Via Láctea.",
+                curiosity: "Ela abriga Cygnus X-1, o primeiro lugar do universo onde cientistas conseguiram confirmar e provar a existência de um buraco negro.",
+                color: "#14b8a6",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-teal-400">
+                    <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <line x1="15" y1="40" x2="85" y2="40" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="50" cy="15" r="5" fill="#2dd4bf" />
+                    <circle cx="50" cy="40" r="3.5" fill="#cbd5e1" />
+                    <circle cx="50" cy="85" r="3.5" fill="#fbbf24" />
+                </svg>`
+            },
+            cassini: {
+                name: "Cassiopéia Jr",
+                explanation: "Uma charmosa constelação complementar que fascina astrônomos amadores ao revelar nuvens gasosas em binóculos comuns.",
+                curiosity: "Possui uma densa concentração de poeira e gás propícios para o nascimento de estrelas bebês constantemente.",
+                color: "#f43f5e",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-rose-400">
+                    <path d="M20,20 L40,50 L60,30 L80,70 L90,40" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="20" cy="20" r="3" fill="#f43f5e" />
+                    <circle cx="40" cy="50" r="4" fill="#fda4af" />
+                    <circle cx="80" cy="70" r="4.5" fill="#fda4af" />
+                </svg>`
+            },
+            aquila: {
+                name: "Águia",
+                explanation: "Representa a águia de rapina que carregava os raios de Zeus. Sua brilhante estrela Altair se destaca no coração do pássaro.",
+                curiosity: "Sua estrela principal gira tão rápido sobre si mesma que seu formato não é esférico, mas sim ovalado e achatado nos polos!",
+                color: "#6366f1",
+                svg: `<svg viewBox="0 0 100 100" class="w-full h-full text-indigo-400">
+                    <path d="M50,15 L50,45 L50,80 M20,35 L50,45 L80,55" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                    <circle cx="50" cy="15" r="3" fill="#cbd5e1" />
+                    <circle cx="50" cy="45" r="5.5" fill="#818cf8" />
+                </svg>`
+            }
+        };
+
+        // --- SISTEMA DE EFEITOS SONOROS NATIVOS (Web Audio API) ---
+        let audioCtx = null;
+        let audioMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (audioMuted) return;
+            try {
+                initAudio();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(700, now + 0.08);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'success') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523, now);
+                    osc.frequency.setValueAtTime(659, now + 0.08);
+                    osc.frequency.setValueAtTime(784, now + 0.16);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'error') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.linearRampToValueAtTime(90, now + 0.25);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'victory') {
+                    const playBeep = (freq, start, duration) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.type = 'triangle';
+                        o.frequency.setValueAtTime(freq, now + start);
+                        g.gain.setValueAtTime(0.15, now + start);
+                        g.gain.exponentialRampToValueAtTime(0.01, now + start + duration);
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.start(now + start);
+                        o.stop(now + start + duration);
+                    };
+                    playBeep(523, 0, 0.12);
+                    playBeep(659, 0.12, 0.12);
+                    playBeep(784, 0.24, 0.12);
+                    playBeep(1046, 0.36, 0.3);
+                }
+            } catch (e) {
+                console.log("Aguardando interação inicial do usuário para ativar áudio.");
+            }
+        }
+
+        function toggleAudio() {
+            audioMuted = !audioMuted;
+            const onIcon = document.getElementById('audioOnIcon');
+            const offIcon = document.getElementById('audioOffIcon');
+            if (audioMuted) {
+                onIcon.classList.add('hidden');
+                offIcon.classList.remove('hidden');
+            } else {
+                onIcon.classList.remove('hidden');
+                offIcon.classList.add('hidden');
+                initAudio();
+            }
+        }
+
+        // --- SISTEMA DE ESTRELAS DE FUNDO ---
+        function createStarfield() {
+            const field = document.getElementById('starfield');
+            if (!field) return;
+            field.innerHTML = '';
+            const screenWidth = window.innerWidth;
+            const count = screenWidth < 768 ? 35 : 90;
+
+            for (let i = 0; i < count; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 2 + 0.5;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.setProperty('--duration', `${Math.random() * 3 + 2}s`);
+                star.style.setProperty('--delay', `${Math.random() * 5}s`);
+                field.appendChild(star);
+            }
+        }
+
+        // --- ESTADO DO JOGO ---
+        let currentDifficulty = 'easy';
+        let cards = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let moves = 0;
+        let score = 0;
+        let startTime = null;
+        let timerInterval = null;
+        let isBoardLocked = false;
+        let unlockedAwards = {
+            easy: false,
+            medium: false,
+            hard: false
+        };
+
+        const ASTRO_QUOTES = {
+            start: "Observe atentamente as cartas. Toque em duas para revelar as constelações. Se forem iguais, você desbloqueia uma curiosidade científica!",
+            success: "Incrível! Você encontrou uma constelação! Vamos ver o que ela esconde...",
+            error: "Quase! Tente lembrar onde cada constelação está escondida.",
+            near_victory: "Você está muito perto de completar sua missão espacial!",
+            victory: "Parabéns, explorador! Você encontrou todas as constelações e concluiu sua missão com sucesso!"
+        };
+
+        function astroSpeak(text) {
+            const speechBubble = document.getElementById('astroSpeech');
+            if (speechBubble) {
+                speechBubble.innerText = text;
+            }
+
+            const mouth = document.getElementById('astroMouth');
+            if (mouth) {
+                let ticks = 0;
+                const interval = setInterval(() => {
+                    ticks++;
+                    mouth.setAttribute('d', ticks % 2 === 0 ? 'M 90 82 Q 100 85 110 82' : 'M 92 80 Q 100 90 108 80');
+                    if (ticks > 8) {
+                        clearInterval(interval);
+                        mouth.setAttribute('d', 'M 92 80 Q 100 90 108 80');
+                    }
+                }, 150);
+            }
+        }
+
+        function changeDifficulty(difficulty) {
+            if (currentDifficulty === difficulty && cards.length > 0) return;
+            currentDifficulty = difficulty;
+            
+            ['easy', 'medium', 'hard'].forEach(d => {
+                const btn = document.getElementById(`btn-${d}`);
+                if (btn) {
+                    if (d === difficulty) {
+                        btn.className = `flex-1 md:flex-none px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition duration-300 border border-sky-500/30 bg-sky-500/20 text-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.2)]`;
+                    } else {
+                        btn.className = "flex-1 md:flex-none px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition duration-300 border border-slate-700 bg-slate-800 text-slate-400";
+                    }
+                }
+            });
+
+            resetGame();
+        }
+
+        function getPairCount() {
+            if (currentDifficulty === 'easy') return 4;
+            if (currentDifficulty === 'medium') return 8;
+            return 12;
+        }
+
+        function resetGame() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            document.getElementById('timeCounter').innerText = "00:00";
+            startTime = null;
+
+            moves = 0;
+            score = 0;
+            matchedPairs = 0;
+            flippedCards = [];
+            isBoardLocked = false;
+
+            document.getElementById('moveCounter').innerText = "0";
+            document.getElementById('scoreCounter').innerText = "0";
+            
+            updateProgress();
+            astroSpeak(ASTRO_QUOTES.start);
+
+            const keys = Object.keys(CONSTELLATIONS_DATABASE);
+            const pairCount = getPairCount();
+            const selectedKeys = keys.slice(0, pairCount);
+            
+            let deck = [];
+            selectedKeys.forEach(key => {
+                deck.push({ id: key, info: CONSTELLATIONS_DATABASE[key] });
+                deck.push({ id: key, info: CONSTELLATIONS_DATABASE[key] });
+            });
+
+            deck.sort(() => Math.random() - 0.5);
+            cards = deck;
+
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('gameBoard');
+            if (!board) return;
+            board.innerHTML = '';
+
+            if (currentDifficulty === 'easy') {
+                board.className = "grid grid-cols-2 sm:grid-cols-4 gap-2 justify-center items-center max-w-[480px] mx-auto";
+            } else if (currentDifficulty === 'medium') {
+                board.className = "grid grid-cols-4 gap-2 justify-center items-center max-w-[480px] mx-auto";
+            } else {
+                board.className = "grid grid-cols-4 md:grid-cols-6 gap-2 justify-center items-center max-w-[640px] mx-auto";
+            }
+
+            cards.forEach((card, index) => {
+                // Utilizando um botão HTML nativo para máxima compatibilidade em dispositivos de toque
+                const cardEl = document.createElement('button');
+                cardEl.type = 'button';
+                cardEl.className = "card-container block aspect-[3/4] w-full cursor-pointer h-24 xs:h-28 sm:h-36 p-0 bg-transparent border-0 text-left outline-none focus:outline-none relative";
+                
+                // Vínculo programático direto de clique, sem risco de ser bloqueado por politicas de segurança
+                cardEl.onclick = function(e) {
+                    if (e) e.preventDefault();
+                    flipCard(index);
+                };
+
+                // 'pointer-events-none' garante que o toque seja processado apenas pelo botão e não pelas linhas internas
+                cardEl.innerHTML = `
+                    <div class="card-inner w-full h-full relative pointer-events-none" id="card-inner-${index}">
+                        <!-- Frente da Carta (Oculta) -->
+                        <div class="card-front w-full h-full bg-slate-900 border-2 border-slate-700/80 rounded-xl flex items-center justify-center p-2 shadow-lg hover:border-sky-400/60 transition-all duration-300">
+                            <span class="text-2xl sm:text-3xl text-sky-400/60 select-none font-bold">?</span>
+                        </div>
+                        <!-- Verso da Carta (Constelação) -->
+                        <div class="card-back w-full h-full bg-slate-950 border-2 border-sky-400/80 rounded-xl flex flex-col justify-between p-1.5 shadow-[0_0_10px_rgba(56,189,248,0.15)]">
+                            <div class="w-full flex-1 flex items-center justify-center p-0.5 z-10 relative">
+                                ${card.info.svg}
+                            </div>
+                            <div class="text-center z-10">
+                                <span class="block text-[8px] sm:text-[10px] font-black text-sky-300 truncate uppercase font-orbitron tracking-wider">${card.info.name}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                board.appendChild(cardEl);
+            });
+        }
+
+        function flipCard(index) {
+            if (isBoardLocked) return;
+            const inner = document.getElementById(`card-inner-${index}`);
+            
+            if (!inner || inner.classList.contains('flipped') || flippedCards.includes(index)) return;
+
+            if (!startTime) {
+                startTime = new Date();
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+
+            playSound('click');
+            inner.classList.add('flipped');
+            flippedCards.push(index);
+
+            if (flippedCards.length === 2) {
+                moves++;
+                document.getElementById('moveCounter').innerText = moves;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            isBoardLocked = true;
+            const [idx1, idx2] = flippedCards;
+            const card1 = cards[idx1];
+            const card2 = cards[idx2];
+
+            if (card1.id === card2.id) {
+                matchedPairs++;
+                score += 150 - Math.min(moves * 2, 50);
+                document.getElementById('scoreCounter').innerText = score;
+                updateProgress();
+
+                setTimeout(() => {
+                    const c1 = document.getElementById(`card-inner-${idx1}`);
+                    const c2 = document.getElementById(`card-inner-${idx2}`);
+                    if (c1 && c2) {
+                        c1.querySelector('.card-back').classList.replace('border-sky-400/80', 'border-emerald-500');
+                        c2.querySelector('.card-back').classList.replace('border-sky-400/80', 'border-emerald-500');
+                    }
+                    
+                    playSound('success');
+                    openEducationModal(card1.info);
+
+                    const pairTotal = getPairCount();
+                    if (matchedPairs === pairTotal - 1) {
+                        astroSpeak(ASTRO_QUOTES.near_victory);
+                    } else if (matchedPairs === pairTotal) {
+                        astroSpeak(ASTRO_QUOTES.victory);
+                    } else {
+                        astroSpeak(ASTRO_QUOTES.success);
+                    }
+
+                    flippedCards = [];
+                    isBoardLocked = false;
+
+                    if (matchedPairs === pairTotal) {
+                        setTimeout(triggerVictory, 1000);
+                    }
+                }, 350);
+
+            } else {
+                setTimeout(() => {
+                    const c1 = document.getElementById(`card-inner-${idx1}`);
+                    const c2 = document.getElementById(`card-inner-${idx2}`);
+                    if (c1 && c2) {
+                        c1.querySelector('.card-back').classList.replace('border-sky-400/80', 'border-rose-500');
+                        c2.querySelector('.card-back').classList.replace('border-sky-400/80', 'border-rose-500');
+                    }
+                    
+                    playSound('error');
+                    astroSpeak(ASTRO_QUOTES.error);
+
+                    setTimeout(() => {
+                        if (c1 && c2) {
+                            c1.classList.remove('flipped');
+                            c2.classList.remove('flipped');
+                            c1.querySelector('.card-back').classList.replace('border-rose-500', 'border-sky-400/80');
+                            c2.querySelector('.card-back').classList.replace('border-rose-500', 'border-sky-400/80');
+                        }
+
+                        flippedCards = [];
+                        isBoardLocked = false;
+                    }, 800);
+                }, 350);
+            }
+        }
+
+        function updateProgress() {
+            const pairTotal = getPairCount();
+            const pct = pairTotal > 0 ? Math.round((matchedPairs / pairTotal) * 100) : 0;
+            document.getElementById('progressBar').style.width = `${pct}%`;
+            document.getElementById('progressText').innerText = `${pct}%`;
+        }
+
+        function updateTimer() {
+            if (!startTime) return;
+            const diff = new Date() - startTime;
+            const totalSecs = Math.floor(diff / 1000);
+            const mins = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+            const secs = (totalSecs % 60).toString().padStart(2, '0');
+            document.getElementById('timeCounter').innerText = `${mins}:${secs}`;
+        }
+
+        function triggerVictory() {
+            clearInterval(timerInterval);
+            playSound('victory');
+
+            unlockedAwards[currentDifficulty] = true;
+            saveAwardsState();
+            updateAwardsUI();
+
+            const timeStr = document.getElementById('timeCounter').innerText;
+            document.getElementById('victoryMoves').innerText = moves;
+            document.getElementById('victoryTime').innerText = timeStr;
+            document.getElementById('victoryScore').innerText = score;
+
+            openModal('victoryModal');
+        }
+
+        function saveAwardsState() {
+            localStorage.setItem('constellation_awards3', JSON.stringify(unlockedAwards));
+        }
+
+        function loadAwardsState() {
+            const saved = localStorage.getItem('constellation_awards3');
+            if (saved) {
+                try {
+                    unlockedAwards = JSON.parse(saved);
+                } catch(e) {}
+            }
+            updateAwardsUI();
+        }
+
+        function updateAwardsUI() {
+            let totalUnlocked = 0;
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                const medalCard = document.getElementById(`medal-${diff}`);
+                if (medalCard && unlockedAwards[diff]) {
+                    medalCard.classList.remove('opacity-40', 'grayscale');
+                    medalCard.classList.add('border-yellow-500/50', 'bg-slate-900/90');
+                    totalUnlocked++;
+                }
+            });
+
+            const cert = document.getElementById('certificateContainer');
+            if (cert && totalUnlocked === 3) {
+                cert.className = "border border-yellow-500/50 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 p-3 rounded-xl text-center flex flex-col items-center justify-center";
+                cert.innerHTML = `
+                    <h4 class="text-xs font-black text-yellow-300 uppercase font-orbitron">Explorador Supremo</h4>
+                    <p class="text-[9px] text-yellow-100/80 mt-0.5">Certificamos que este astronauta concluiu a exploração de todas as constelações com sucesso!</p>
+                `;
+            }
+        }
+
+        // --- SISTEMA DE MODAIS ---
+        function openModal(id) {
+            document.body.classList.add('modal-open');
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                const content = modal.querySelector('div');
+                if (content) content.classList.remove('scale-95');
+            }, 50);
+        }
+
+        function closeModal(id) {
+            document.body.classList.remove('modal-open');
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('opacity-0');
+            const content = modal.querySelector('div');
+            if (content) content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 250);
+        }
+
+        function openEducationModal(info) {
+            document.getElementById('modalTitle').innerText = info.name;
+            document.getElementById('modalConstellationSvg').innerHTML = info.svg;
+            document.getElementById('modalExplanation').innerText = info.explanation;
+            document.getElementById('modalCuriosity').innerText = info.curiosity;
+            openModal('educationModal');
+        }
+
+        // --- CARREGAMENTO PROGRAMÁTICO DOS EVENTOS ---
+        window.onload = function() {
+            createStarfield();
+            loadAwardsState();
+            resetGame();
+
+            // Atribuição de listeners robustos no carregamento da página
+            document.getElementById('audioBtn').onclick = toggleAudio;
+            document.getElementById('awardsBtn').onclick = () => openModal('awardsModal');
+            document.getElementById('closeAwardsBtn').onclick = () => closeModal('awardsModal');
+            
+            document.getElementById('btn-easy').onclick = () => changeDifficulty('easy');
+            document.getElementById('btn-medium').onclick = () => changeDifficulty('medium');
+            document.getElementById('btn-hard').onclick = () => changeDifficulty('hard');
+            
+            document.getElementById('resetBtn').onclick = resetGame;
+            
+            document.getElementById('closeEducationBtn').onclick = () => closeModal('educationModal');
+            document.getElementById('playAgainBtn').onclick = () => {
+                closeModal('victoryModal');
+                resetGame();
+            };
+            document.getElementById('viewMedalsBtn').onclick = () => {
+                closeModal('victoryModal');
+                openModal('awardsModal');
+            };
+
+            window.onresize = createStarfield;
+        };
+    </script>
+</body>
+</html>
+
+```
